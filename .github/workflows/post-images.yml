@@ -27,6 +27,14 @@ jobs:
             **.png
             **.gif
 
+      - name: Get commit information
+        id: commit-info
+        run: |
+          AUTHOR_NAME=$(git log -1 --pretty=format:'%an')
+          COMMIT_MESSAGE=$(git log -1 --pretty=format:'%s')
+          echo "author_name=$AUTHOR_NAME" >> $GITHUB_OUTPUT
+          echo "commit_message=$COMMIT_MESSAGE" >> $GITHUB_OUTPUT
+
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
@@ -46,6 +54,8 @@ jobs:
           
           webhook_url = os.environ['DISCORD_WEBHOOK_URL']
           changed_files = '${{ steps.changed-files.outputs.all_changed_files }}'.split()
+          author_name = '${{ steps.commit-info.outputs.author_name }}'
+          commit_message = '${{ steps.commit-info.outputs.commit_message }}'
           
           for file_path in changed_files:
               if not os.path.exists(file_path):
@@ -57,7 +67,7 @@ jobs:
                   }
                   
                   data = {
-                      'content': f'New image/mask committed: `{file_path}`'
+                      'content': f'{author_name} posted "{commit_message}": `{file_path}`'
                   }
                   
                   response = requests.post(webhook_url, data=data, files=files)
