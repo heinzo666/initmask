@@ -1,0 +1,79 @@
+name: Post Images to Discord
+
+on:
+  push:
+    paths:
+      - '**.jpg'
+      - '**.jpeg'
+      - '**.png'
+      - '**.gif'
+
+jobs:
+  post-images:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@v42
+        with:
+          files: |
+            **.jpg
+            **.jpeg
+            **.png
+            **.gif
+
+      - name: Get commit information
+        id: commit-info
+        run: |
+          AUTHOR_NAME=$(git log -1 --pretty=format:'%an')
+          COMMIT_MESSAGE=$(git log -1 --pretty=format:'%s')
+          echo "author_name=$AUTHOR_NAME" >> $GITHUB_OUTPUT
+          echo "commit_message=$COMMIT_MESSAGE" >> $GITHUB_OUTPUT
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Post images to Discord
+        if: steps.changed-files.outputs.any_changed == 'true'
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          import requests
+          import os
+          import json
+          
+          webhook_url = os.environ['DISCORD_WEBHOOK_URL']
+          changed_files = '${{ steps.changed-files.outputs.all_changed_files }}'.split()
+          author_name = '${{ steps.commit-info.outputs.author_name }}'
+          commit_message = '${{ steps.commit-info.outputs.commit_message }}'
+          
+          for file_path in changed_files:
+              if not os.path.exists(file_path):
+                  continue
+                  
+              with open(file_path, 'rb') as file:
+                  files = {
+                      'file': (file_path, file, 'application/octet-stream')
+                  }
+                  
+                  data = {
+                      'content': f'{author_name} posted "{commit_message}": `{file_path}`'
+                  }
+                  
+                  response = requests.post(webhook_url, data=data, files=files)
+                  
+                  if response.status_code == 204:
+                      print(f'Successfully posted {file_path} to Discord')
+                  else:
+                      print(f'Failed to post {file_path}. Status code: {response.status_code}')
+        shell: python
